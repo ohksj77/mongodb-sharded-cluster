@@ -1,0 +1,77 @@
+version: '3.8'
+
+# run.sh 스크립트 파일을 통해 실행해주세요.
+
+services:
+  backend:
+    build: .
+    container_name: backend
+    ports:
+      - "8080:8080"
+    networks:
+      - app-tier
+    depends_on:
+      - mongo-router
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo-router:27017/testdb
+
+  mongo-config:
+    image: mongo:4.4
+    container_name: mongo-config
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27019
+    ports:
+      - "27019:27019"
+    volumes:
+      - configdb:/data/db
+    networks:
+      - app-tier
+    environment:
+      - MONGO_INITDB_DATABASE=admin
+
+  mongo-shard1:
+    image: mongo:4.4
+    container_name: mongo-shard1
+    command: mongod --shardsvr --replSet shard1ReplSet --bind_ip_all --port 27018
+    ports:
+      - "27018:27018"
+    volumes:
+      - shard1:/data/db
+    networks:
+      - app-tier
+    environment:
+      - MONGO_INITDB_DATABASE=admin
+
+  mongo-shard2:
+    image: mongo:4.4
+    container_name: mongo-shard2
+    command: mongod --shardsvr --replSet shard2ReplSet --bind_ip_all --port 27020
+    ports:
+      - "27020:27020"
+    volumes:
+      - shard2:/data/db
+    networks:
+      - app-tier
+    environment:
+      - MONGO_INITDB_DATABASE=admin
+
+  mongo-router:
+    image: mongo:4.4
+    container_name: mongo-router
+    command: mongos --configdb configReplSet/mongo-config:27019 --bind_ip_all
+    ports:
+      - "27017:27017"
+    depends_on:
+      - mongo-config
+      - mongo-shard1
+      - mongo-shard2
+    networks:
+      - app-tier
+
+volumes:
+  configdb:
+  shard1:
+  shard2:
+
+networks:
+  app-tier:
+    driver: bridge
